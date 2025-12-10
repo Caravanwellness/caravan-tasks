@@ -1,5 +1,5 @@
 .env
 *.pyc
 __pycache__/
-sheets/
-thumbnails/
+vimeo/sheets/
+vimeo/images/
