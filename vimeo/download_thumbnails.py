@@ -7,8 +7,8 @@ import time
 
 def create_thumbnails_folder():
     """Create thumbnails folder if it doesn't exist"""
-    if not os.path.exists('thumbnails'):
-        os.makedirs('thumbnails')
+    if not os.path.exists('images/thumbnails'):
+        os.makedirs('images/thumbnails')
         print("Created 'thumbnails' folder")
 
 def get_thumbnail_url(page_url):
@@ -50,9 +50,9 @@ def download_thumbnail(thumbnail_url, video_name, row_number):
         # Create safe filename from video name
         safe_name = "".join(c for c in video_name if c.isalnum() or c in (' ', '-', '_')).strip()
         safe_name = safe_name.replace(' ', '_')
-        filename = f"{row_number:03d}_{safe_name}{ext}"
+        filename = f"{(row_number + 1):03d}_{safe_name}{ext}"
 
-        filepath = os.path.join('thumbnails', filename)
+        filepath = os.path.join('images','thumbnails', filename)
 
         with open(filepath, 'wb') as f:
             f.write(response.content)
@@ -65,7 +65,7 @@ def download_thumbnail(thumbnail_url, video_name, row_number):
         return False
 
 def main():
-    csv_path = os.path.join('sheets', 'Sante Group.csv')
+    csv_path = os.path.join('sheets', 'Sterling.csv')
 
     if not os.path.exists(csv_path):
         print(f"Error: CSV file not found at {csv_path}")
@@ -82,11 +82,16 @@ def main():
         fail_count = 0
 
         for i, row in enumerate(reader, start=1):
-            video_name = row.get('Video Name ', '').strip()
+            video_name = row.get('Topic', '').strip()
             url = row.get('URL', '').strip()
+            content_format = row.get('Content Format', '').strip()
 
             if not url:
                 print(f"{i}. Skipping row - no URL")
+                continue
+
+            if content_format.lower() != 'video' and content_format.lower() != 'audio':
+                print(f"{i}. Skipping {video_name} - Content Format is '{content_format}'")
                 continue
 
             print(f"{i}. Processing: {video_name}")

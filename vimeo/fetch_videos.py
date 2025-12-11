@@ -100,21 +100,7 @@ def fetch_all_videos(api_key):
 print("Starting to fetch all videos...")
 all_videos, total_videos = fetch_all_videos(api_key)
 
-print(f"\n{'='*150}")
-print(f"Total videos in API: {total_videos}")
-print(f"Total videos fetched: {len(all_videos)}")
-print(f"{'='*150}")
 
-# Create a data structure similar to single-page response
-data = {
-    '_embedded': {'videos': all_videos},
-    'total': total_videos,
-    'count': len(all_videos)
-}
-
-# Create thumbnails folder if it doesn't exist
-thumbnails_folder = Path('thumbnails')
-thumbnails_folder.mkdir(exist_ok=True)
 
 # Filter for only videos with status "complete" and exclude (Highlight) videos
 if '_embedded' in data and 'videos' in data['_embedded']:
