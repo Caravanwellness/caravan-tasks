@@ -1,16 +1,17 @@
 from pathlib import Path
-from moviepy.editor import VideoFileClip, ImageClip, concatenate_videoclips, CompositeVideoClip
-import re
+from moviepy.editor import VideoFileClip, ImageClip, concatenate_videoclips
+import cv2
 import numpy as np
 import random
 
 def sanitize_filename(filename):
     """Remove invalid characters from filename"""
+    import re
     return re.sub(r'[<>:"/\\|?*]', '', filename)
 
-def find_static_image_end(video_path, threshold=0.01, sample_rate=0.1):
+def find_static_image_end_cv2(video_path, threshold=0.01, sample_rate=0.1):
     """
-    Find the timestamp where a video stops being a static image.
+    Find the timestamp where a video stops being a static image using OpenCV.
 
     Args:
         video_path: Path to the video file
@@ -18,40 +19,51 @@ def find_static_image_end(video_path, threshold=0.01, sample_rate=0.1):
         sample_rate: How often to sample frames in seconds
 
     Returns:
-        Float timestamp in seconds, or None if no change detected
+        Float timestamp in seconds, or 5 if no change detected
     """
-    try:
-        video = VideoFileClip(str(video_path), audio=False)
-    except Exception as e:
-        print(f"  Error loading video in find_static_image_end: {e}")
-        raise
+    cap = cv2.VideoCapture(str(video_path))
 
+    if not cap.isOpened():
+        print(f"  Error: Could not open video file")
+        return 5
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps
+
+    frame_step = int(fps * sample_rate)
     prev_frame = None
-    current_time = 0
+    frame_num = 0
 
-    while current_time < video.duration:
-        frame = video.get_frame(current_time)
+    while frame_num < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+        ret, frame = cap.read()
+
+        if not ret:
+            break
+
+        # Convert to grayscale for comparison
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         if prev_frame is not None:
             # Calculate mean absolute difference between frames
-            diff = np.mean(np.abs(frame.astype(float) - prev_frame.astype(float))) / 255.0
+            diff = np.mean(np.abs(gray_frame.astype(float) - prev_frame.astype(float))) / 255.0
 
             if diff > threshold:
-                video.close()
+                current_time = frame_num / fps
+                cap.release()
                 return current_time
 
-        prev_frame = frame
-        current_time += sample_rate
+        prev_frame = gray_frame
+        frame_num += frame_step
 
+    cap.release()
     print("  No change detected in video frames.")
-
-    video.close()
     return 5  # Entire video is static
 
-def find_static_image_start(video_path, threshold=0.01, sample_rate=0.1):
+def find_static_image_start_cv2(video_path, threshold=0.01, sample_rate=0.1):
     """
-    Find the timestamp where a static image begins at the end of a video.
-    Scans backwards from the end to find when motion stops.
+    Find the timestamp where a static image begins at the end using OpenCV.
 
     Args:
         video_path: Path to the video file
@@ -59,49 +71,59 @@ def find_static_image_start(video_path, threshold=0.01, sample_rate=0.1):
         sample_rate: How often to sample frames in seconds
 
     Returns:
-        Float timestamp in seconds where static image starts, or video duration if no static found
+        Float timestamp in seconds where static image starts
     """
-    try:
-        video = VideoFileClip(str(video_path), audio=False)
-    except Exception as e:
-        print(f"  Error loading video in find_static_image_start: {e}")
-        raise
+    cap = cv2.VideoCapture(str(video_path))
+
+    if not cap.isOpened():
+        print(f"  Error: Could not open video file")
+        return 0
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps
+
+    frame_step = int(fps * sample_rate)
+    prev_frame = None
+    static_start = duration
 
     # Start from the end and work backwards
-    current_time = video.duration - sample_rate
-    prev_frame = None
-    static_start = video.duration
+    frame_num = total_frames - 1
 
-    while current_time > 0:
-        frame = video.get_frame(current_time)
+    while frame_num > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+        ret, frame = cap.read()
+
+        if not ret:
+            frame_num -= frame_step
+            continue
+
+        # Convert to grayscale for comparison
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         if prev_frame is not None:
             # Calculate mean absolute difference between frames
-            diff = np.mean(np.abs(frame.astype(float) - prev_frame.astype(float))) / 255.0
+            diff = np.mean(np.abs(gray_frame.astype(float) - prev_frame.astype(float))) / 255.0
 
             if diff > threshold:
                 static_start -= 0.1
                 # Found motion - static image starts after this point
-                video.close()
-                print(f"  Static image starts at: {video.duration - static_start:.2f}s before end")
+                cap.release()
+                print(f"  Static image starts at: {duration - static_start:.2f}s before end")
                 return static_start
 
         # Still in static region, update static_start
-        static_start = current_time
-        prev_frame = frame
-        current_time -= sample_rate
+        static_start = frame_num / fps
+        prev_frame = gray_frame
+        frame_num -= frame_step
 
+    cap.release()
     print("  Entire video appears to be static from beginning.")
-
-    video.close()
     return 0  # Entire video is static
 
 def find_matching_slide(video_name, slides_folder):
     """Find the corresponding slide image for a video"""
-    # Remove extension from video name
     video_base = Path(video_name).stem
-
-    # Common image extensions to check
     image_extensions = ['.jpeg', '.jpg', '.png', '.JPEG', '.JPG', '.PNG']
 
     for ext in image_extensions:
@@ -116,10 +138,7 @@ def get_random_mantra(mantras_folder):
     if not mantras_folder.exists():
         return None
 
-    # Common image extensions to check
     image_extensions = ['.jpeg', '.jpg', '.png', '.JPEG', '.JPG', '.PNG']
-
-    # Get all image files in the mantras folder
     mantra_images = [f for f in mantras_folder.iterdir()
                      if f.is_file() and f.suffix in image_extensions]
 
@@ -129,27 +148,12 @@ def get_random_mantra(mantras_folder):
     return random.choice(mantra_images)
 
 def replace_intro_and_outro(video_path, slide_path, mantra_path, output_path, intro_duration, outro_timestamp):
-    """Replace the first portion with a slide and last 5 seconds with a mantra image
-
-    Args:
-        video_path: Path to the input video
-        slide_path: Path to the slide image
-        mantra_path: Path to the mantra image for outro
-        output_path: Path for the output video
-        intro_duration: Duration of intro slide in seconds
-        outro_duration: Duration of outro mantra in seconds (default 5)
-    """
-
+    """Replace the first portion with a slide and last portion with a mantra image"""
 
     print(f"Processing: {video_path.name}")
 
     # Load the video
-    try:
-        video = VideoFileClip(str(video_path))
-    except Exception as e:
-        print(f"  Error loading video: {e}")
-        raise
-
+    video = VideoFileClip(str(video_path))
     outro_duration = video.duration - outro_timestamp
 
     # Load the slide image for intro
@@ -195,9 +199,8 @@ def replace_intro_and_outro(video_path, slide_path, mantra_path, output_path, in
         temp_audiofile='temp-audio.m4a',
         remove_temp=True,
         fps=video.fps,
-        preset='ultrafast',  # Much faster encoding (ultrafast, superfast, veryfast, faster, fast, medium)
-        threads=6,           # Use 6 out of 8 CPU cores (leaves 2 for system)
-        # logger=None          # Disable verbose logging for cleaner output
+        preset='ultrafast',
+        threads=6,
     )
 
     # Close clips to free resources
@@ -249,6 +252,7 @@ def main():
             print(f"{video_file.name} - skipping")
             skipped += 1
             continue
+
         # Find matching slide
         slide_path = find_matching_slide(video_file.name, slides_folder)
 
@@ -269,8 +273,9 @@ def main():
         output_path = output_folder / video_file.name
 
         try:
-            duration = find_static_image_end(video_file, threshold=0.01, sample_rate=0.1)
-            end_duration = find_static_image_start(video_file, threshold=0.01, sample_rate=0.1)
+            # Use OpenCV for frame detection
+            duration = find_static_image_end_cv2(video_file, threshold=0.01, sample_rate=0.1)
+            end_duration = find_static_image_start_cv2(video_file, threshold=0.01, sample_rate=0.1)
             print(f"  Detected static image duration for {video_file.name}: {duration:.2f}s, end at {end_duration:.2f}s")
 
             print(f"  Using mantra: {mantra_path.name}")
@@ -278,6 +283,8 @@ def main():
             processed += 1
         except Exception as e:
             print(f"Error processing {video_file.name}: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
             skipped += 1
 
     print(f"\n{'='*50}")

@@ -84,65 +84,65 @@ for video in all_videos:
     print(f"{video['uri']}: {video['name']}")
 
 
-# Create a data structure similar to single-page response
-# data = {
-#     '_embedded': {'videos': all_videos},
-#     'total': total_videos,
-#     'count': len(all_videos)
-# }
+Create a data structure similar to single-page response
+data = {
+    '_embedded': {'videos': all_videos},
+    'total': total_videos,
+    'count': len(all_videos)
+}
 
-# # Create thumbnails folder if it doesn't exist
-# thumbnails_folder = Path('thumbnails')
-# thumbnails_folder.mkdir(exist_ok=True)
+# Create thumbnails folder if it doesn't exist
+thumbnails_folder = Path('thumbnails')
+thumbnails_folder.mkdir(exist_ok=True)
 
-# Filter for only videos with status "complete" and exclude (Highlight) videos
-# if '_embedded' in data and 'videos' in data['_embedded']:
-#     complete_videos = [
-#         video for video in data['_embedded']['videos']
-#         if video.get('status') == 'complete' 
-#             and video.get('description') is not None and video.get('description') != "" 
-#             and '(Highlight' not in video.get('title', '') and '9x16' not in video.get('title', '') 
+Filter for only videos with status "complete" and exclude (Highlight) videos
+if '_embedded' in data and 'videos' in data['_embedded']:
+    complete_videos = [
+        video for video in data['_embedded']['videos']
+        if video.get('status') == 'complete' 
+            and video.get('description') is not None and video.get('description') != "" 
+            and '(Highlight' not in video.get('title', '') and '9x16' not in video.get('title', '') 
             
-#     ]
+    ]
 
-#     # Update the data with filtered videos
-#     data['_embedded']['videos'] = complete_videos
-#     data['count'] = len(complete_videos)
+    # Update the data with filtered videos
+    data['_embedded']['videos'] = complete_videos
+    data['count'] = len(complete_videos)
 
-#     print(f"\nTotal videos fetched: {data.get('total', 0)}")
-#     print(f"Complete videos filtered: {len(complete_videos)}")
+    print(f"\nTotal videos fetched: {data.get('total', 0)}")
+    print(f"Complete videos filtered: {len(complete_videos)}")
 
-    # Download thumbnails for complete videos
-    # if complete_videos:
-    #     print(f"\nDownloading thumbnails...")
-    #     downloaded = 0
-    #     for video in complete_videos:
-    #         if download_thumbnail(video):
-    #             downloaded += 1
-    #     print(f"\nThumbnails downloaded: {downloaded}/{len(complete_videos)}")
+    Download thumbnails for complete videos
+    if complete_videos:
+        print(f"\nDownloading thumbnails...")
+        downloaded = 0
+        for video in complete_videos:
+            if download_thumbnail(video):
+                downloaded += 1
+        print(f"\nThumbnails downloaded: {downloaded}/{len(complete_videos)}")
 
-# # Write to CSV file
-# csv_filename = 'sheets/videos.csv'
-# if '_embedded' in data and 'videos' in data['_embedded']:
-#     with open(csv_filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-#         csv_writer = csv.writer(csvfile)
+# Write to CSV file
+csv_filename = 'sheets/videos.csv'
+if '_embedded' in data and 'videos' in data['_embedded']:
+    with open(csv_filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
+        csv_writer = csv.writer(csvfile)
 
-#         # Write header
-#         csv_writer.writerow(['Title', 'Description', 'Video Link', 'Video Page Link'])
+        # Write header
+        csv_writer.writerow(['Title', 'Description', 'Video Link', 'Video Page Link'])
 
-#         # Write video data
-#         for video in data['_embedded']['videos']:
-#             title = video.get('title', '')
-#             video_link = video.get('_links', {}).get('self', {}).get('href', '')
-#             video_page_link = video.get('_links', {}).get('video_page', {}).get('href', '')
-#             description = video.get('description', '') or ''  # Use empty string if None
+        # Write video data
+        for video in data['_embedded']['videos']:
+            title = video.get('title', '')
+            video_link = video.get('_links', {}).get('self', {}).get('href', '')
+            video_page_link = video.get('_links', {}).get('video_page', {}).get('href', '')
+            description = video.get('description', '') or ''  # Use empty string if None
 
-#             csv_writer.writerow([title, description, video_link, video_page_link])
+            csv_writer.writerow([title, description, video_link, video_page_link])
 
-#     print(f"\nCSV file saved: {csv_filename}")
+    print(f"\nCSV file saved: {csv_filename}")
 
-# # Write to JSON file
-# with open('sheets/videos.json', 'w', encoding='utf-8') as f:
-#     json.dump(data, f, indent=2, ensure_ascii=False)
+# Write to JSON file
+with open('sheets/videos.json', 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
 
-# print(f"JSON file saved: videos.json")
+print(f"JSON file saved: videos.json")
