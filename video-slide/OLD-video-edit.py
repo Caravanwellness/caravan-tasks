@@ -37,6 +37,7 @@ def find_static_image_end(video_path, threshold=0.01, sample_rate=0.1):
             diff = np.mean(np.abs(frame.astype(float) - prev_frame.astype(float))) / 255.0
 
             if diff > threshold:
+                save_transition_snapshots(True, prev_frame, frame, sanitize_filename(Path(video_path).stem))
                 video.close()
                 return current_time
 
@@ -82,6 +83,7 @@ def find_static_image_start(video_path, threshold=0.01, sample_rate=0.1):
             if diff > threshold:
                 static_start -= 0.1
                 # Found motion - static image starts after this point
+                save_transition_snapshots(False, frame, prev_frame, sanitize_filename(Path(video_path).stem))
                 video.close()
                 print(f"  Static image starts at: {video.duration - static_start:.2f}s before end")
                 return static_start
@@ -96,18 +98,71 @@ def find_static_image_start(video_path, threshold=0.01, sample_rate=0.1):
     video.close()
     return 0  # Entire video is static
 
+def save_transition_snapshots(start, before_frame, frame_end, video_name):
+    """
+    Find the transition point from motion to static image and save both frames.
+    Saves the static image and a frame right before the transition.
+
+    Args:
+        video_path: Path to the video file
+        output_folder: Path to folder where snapshots will be saved
+        threshold: Difference threshold (0-1, lower = more sensitive)
+        sample_rate: How often to sample frames in seconds
+
+    Returns:
+        Tuple of (static_image_path, before_transition_path, transition_timestamp)
+    """
+
+    # Create output folder if it doesn't exist
+    output_folder = Path('assets/static_snapshots')
+    output_folder.mkdir(exist_ok=True, parents=True)
+
+    # Convert frame to PIL Image and save
+    from PIL import Image
+    if start:
+        frame_start_static_path = output_folder / f"{video_name}_1.png"
+        frame_start_static_img = Image.fromarray(before_frame)
+        frame_start_static_img.save(str(frame_start_static_path))
+
+        # Save the frame right before transition
+        after_frame_static_path = output_folder / f"{video_name}_2.png"
+        after_frame_static_img = Image.fromarray(frame_end)
+        after_frame_static_img.save(str(after_frame_static_path))
+    else:
+        before_frame_static_path = output_folder / f"{video_name}_3.png"
+        before_frame_static_img = Image.fromarray(before_frame)
+        before_frame_static_img.save(str(before_frame_static_path))
+
+        # Save the frame right before transition
+        frame_end_static_path = output_folder / f"{video_name}_4.png"
+        frame_end_static_img = Image.fromarray(frame_end)
+        frame_end_static_img.save(str(frame_end_static_path))
+
+def normalize_name(name):
+    """Normalize a name by keeping only alphanumeric characters and converting to lowercase"""
+    return re.sub(r'[^a-zA-Z0-9]', '', name).lower()
+
 def find_matching_slide(video_name, slides_folder):
-    """Find the corresponding slide image for a video"""
+    """Find the corresponding slide image for a video, matching alphanumeric characters only"""
     # Remove extension from video name
     video_base = Path(video_name).stem
+    video_normalized = normalize_name(video_base)
 
     # Common image extensions to check
     image_extensions = ['.jpeg', '.jpg', '.png', '.JPEG', '.JPG', '.PNG']
 
+    # First try exact match
     for ext in image_extensions:
         slide_path = slides_folder / f"{video_base}{ext}"
         if slide_path.exists():
             return slide_path
+
+    # If no exact match, try fuzzy matching
+    for slide_file in slides_folder.iterdir():
+        if slide_file.is_file() and slide_file.suffix in image_extensions:
+            slide_normalized = normalize_name(slide_file.stem)
+            if slide_normalized == video_normalized:
+                return slide_file
 
     return None
 
@@ -245,12 +300,17 @@ def main():
     skipped = 0
 
     for video_file in video_files:
-        if video_file.name != "Building Resilience.mp4":
-            print(f"{video_file.name} - skipping")
+        if processed >= 65:
+            # print(f"{video_file.name} - skipping")
             skipped += 1
             continue
+        # if video_file.name != "Meditation_for_Mental_Focus_Truike.mp4":
+        #     # print(f"{video_file.name} - skipping")
+        #     skipped += 1
+        #     continue
         # Find matching slide
         slide_path = find_matching_slide(video_file.name, slides_folder)
+        print(f"{video_file.name} - slide: {slide_path.name if slide_path else 'None'}")
 
         if slide_path is None:
             print(f"Warning: No matching slide found for '{video_file.name}' - skipping")
@@ -274,7 +334,7 @@ def main():
             print(f"  Detected static image duration for {video_file.name}: {duration:.2f}s, end at {end_duration:.2f}s")
 
             print(f"  Using mantra: {mantra_path.name}")
-            replace_intro_and_outro(video_file, slide_path, mantra_path, output_path, duration, end_duration)
+            # replace_intro_and_outro(video_file, slide_path, mantra_path, output_path, duration, end_duration)
             processed += 1
         except Exception as e:
             print(f"Error processing {video_file.name}: {str(e)}\n")

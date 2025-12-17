@@ -190,7 +190,7 @@ def download_video(api_url, video_name, row_number):
         return False
 
 def main():
-    csv_path = os.path.join('sheets', 'Emma Health Curated Content.csv')
+    csv_path = os.path.join('sheets', 'Emma Health 5 vids.csv')
 
     if not os.path.exists(csv_path):
         print(f"Error: CSV file not found at {csv_path}")
@@ -215,6 +215,9 @@ def main():
             video_name = row.get('Video Name ', '').strip()
             url = row.get('URL', '').strip()
             content_format = row.get('Content Format', '').strip()
+
+            # if not video_name == "Meditation for Mental Focus Truike":
+            #     continue
 
             if not url:
                 print(f"{i}. Skipping row - no URL")

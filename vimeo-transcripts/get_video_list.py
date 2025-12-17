@@ -84,7 +84,7 @@ for video in all_videos:
     print(f"{video['uri']}: {video['name']}")
 
 
-Create a data structure similar to single-page response
+# Create a data structure similar to single-page response
 data = {
     '_embedded': {'videos': all_videos},
     'total': total_videos,
@@ -95,7 +95,7 @@ data = {
 thumbnails_folder = Path('thumbnails')
 thumbnails_folder.mkdir(exist_ok=True)
 
-Filter for only videos with status "complete" and exclude (Highlight) videos
+# Filter for only videos with status "complete" and exclude (Highlight) videos
 if '_embedded' in data and 'videos' in data['_embedded']:
     complete_videos = [
         video for video in data['_embedded']['videos']
@@ -112,7 +112,7 @@ if '_embedded' in data and 'videos' in data['_embedded']:
     print(f"\nTotal videos fetched: {data.get('total', 0)}")
     print(f"Complete videos filtered: {len(complete_videos)}")
 
-    Download thumbnails for complete videos
+    # Download thumbnails for complete videos
     if complete_videos:
         print(f"\nDownloading thumbnails...")
         downloaded = 0
