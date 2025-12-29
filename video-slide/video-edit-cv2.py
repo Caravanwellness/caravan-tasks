@@ -10,7 +10,7 @@ def sanitize_filename(filename):
     import re
     return re.sub(r'[<>:"/\\|?*]', '', filename)
 
-def find_static_image_end_cv2(video_path, threshold=0.01, sample_rate=0.1):
+def find_static_image_end_cv2(video_path, threshold, sample_rate):
     """
     Find the timestamp where a video stops being a static image using OpenCV.
 
@@ -79,7 +79,7 @@ def is_frame_black(frame, black_threshold=20):
     mean_brightness = np.mean(frame)
     return mean_brightness < black_threshold
 
-def find_static_image_start_cv2(video_path, threshold=0.01, sample_rate=0.1, black_threshold=20):
+def find_static_image_start_cv2(video_path, threshold, sample_rate, black_threshold):
     """
     Find the timestamp where a static image begins at the end using OpenCV.
     First checks if the end is black, and if so, finds where non-black content ends.
@@ -364,15 +364,15 @@ def main():
     skipped = 0
 
     for video_file in video_files:
-        if skipped <= 40:
-            # print(f"{video_file.name} - skipping")
-
-            skipped += 1
-            continue
-        # if video_file.name != "Barre_Core__Balance.mp4":
+        # if skipped <= 40:
         #     # print(f"{video_file.name} - skipping")
+
         #     skipped += 1
         #     continue
+        if video_file.name != "Increase_Your_Flexibility.mp4":
+            # print(f"{video_file.name} - skipping")
+            skipped += 1
+            continue
 
         # Find matching slide
         slide_path = find_matching_slide(video_file.name, slides_folder)
@@ -396,7 +396,7 @@ def main():
         try:
             # Use OpenCV for frame detection
             duration = find_static_image_end_cv2(video_file, threshold=0.01, sample_rate=0.1)
-            end_duration = find_static_image_start_cv2(video_file, threshold=0.01, sample_rate=0.1)
+            end_duration = find_static_image_start_cv2(video_file, threshold=0.01, sample_rate=0.1, black_threshold=20)
             print(f"  Detected static image duration for {video_file.name}: {duration:.2f}s, end at {end_duration:.2f}s")
 
             print(f"  Using mantra: {mantra_path.name}")
