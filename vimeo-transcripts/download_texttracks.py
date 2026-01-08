@@ -15,11 +15,15 @@ def parse_vtt_to_text(vtt_content):
     Parse VTT content and extract plain text transcript.
 
     Args:
-        vtt_content: String content of VTT file
+        vtt_content: String content of VTT file (not bytes)
 
     Returns:
         String of clean transcript text
     """
+    # Ensure input is a string
+    if isinstance(vtt_content, bytes):
+        raise TypeError("vtt_content must be a string, not bytes. Decode bytes before calling this function.")
+
     lines = vtt_content.split('\n')
     transcript_lines = []
 
@@ -74,6 +78,10 @@ def convert_vtt_to_transcript(vtt_path, output_path):
     try:
         with open(vtt_path, 'r', encoding='utf-8') as f:
             vtt_content = f.read()
+
+        # Ensure content is a string (in case bytes are passed)
+        if isinstance(vtt_content, bytes):
+            vtt_content = vtt_content.decode('utf-8')
 
         transcript_text = parse_vtt_to_text(vtt_content)
 
@@ -200,8 +208,9 @@ def select_texttrack(texttracks):
 
     return None
 
-def download_vtt(link, output_path):
-    """Download VTT file from the given link"""
+
+def get_vtt(link):
+    """Download VTT file from the given link and return as string"""
     response = requests.get(link)
 
 
@@ -209,8 +218,17 @@ def download_vtt(link, output_path):
         print(f"  Error downloading VTT: {response.status_code}")
         return False
 
-    with open(output_path, 'wb') as f:
-        f.write(response.content)
+
+    # Properly decode bytes to string
+    return response.content.decode('utf-8')
+
+def download_vtt(link, output_path):
+    """Download VTT file from the given link"""
+    vtt_content = get_vtt(link)
+
+    # Since get_vtt now returns a string, write as text
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(vtt_content)
 
 
     return True

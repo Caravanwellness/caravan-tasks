@@ -30,7 +30,7 @@ def fetch_all_videos(api_key):
     """Fetch all videos from the API with pagination"""
     all_videos = []
 
-    url = 'https://api.vimeo.com/users/90373291/folders/27705491/videos'
+    url = 'https://api.vimeo.com/users/90373291/folders/24697474/videos'
 
     headers = {
         'Authorization': 'Bearer ' + bearer_token,
@@ -67,7 +67,7 @@ def fetch_all_videos(api_key):
         page += 1
 
     # Save all videos to JSON file
-    with open('humana_videos.json', 'w', encoding='utf-8') as f:
+    with open('all_english_videos.json', 'w', encoding='utf-8') as f:
         json.dump({'data': all_videos, 'total': len(all_videos)}, f, indent=2, ensure_ascii=False)
 
     print(f"\nCompleted! Total videos fetched: {len(all_videos)}")
@@ -75,8 +75,8 @@ def fetch_all_videos(api_key):
 
 # Fetch all videos
 print("Starting to fetch all videos...")
-if os.path.exists('humana_videos.json'):
-    with open('humana_videos.json', 'r', encoding='utf-8') as f:
+if os.path.exists('all_english_videos.json'):
+    with open('all_english_videos.json', 'r', encoding='utf-8') as f:
         all_videos = json.load(f)['data']
 else:
     all_videos = fetch_all_videos(api_key)
@@ -123,7 +123,7 @@ else:
     #     print(f"\nThumbnails downloaded: {downloaded}/{len(complete_videos)}")
 
 # Write to CSV file
-csv_filename = 'humana_embed_videos.csv'
+csv_filename = 'all_english_videos.csv'
 with open(csv_filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
     csv_writer = csv.writer(csvfile)
 

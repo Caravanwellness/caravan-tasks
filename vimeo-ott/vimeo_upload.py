@@ -41,7 +41,7 @@ vimeo_id_col_idx = 20
 row_counter = 2
 completed_col_idx = 22
 
-MAX_ROWS = 1000  # Set to None to process all rows
+MAX_ROWS = 600  # Set to None to process all rows
 
 
 
@@ -61,10 +61,10 @@ while True:
         print(f"\nSkipping row {row_counter}: Missing Vimeo ID or Description")
         row_counter += 1
         continue
-    elif completed and "Description Updated" in str(completed):
-        print(f"\nSkipping row {row_counter}: Description already updated")
-        row_counter += 1
-        continue
+    # elif completed and "Description Updated" in str(completed):
+    #     print(f"\nSkipping row {row_counter}: Description already updated")
+    #     row_counter += 1
+    #     continue
     else:
         match1 = re.search(r'vimeo\.com/(\d+)', vimeo_id if vimeo_id else '')
         uri = '/videos/' + match1.group(1) if match1 else None
