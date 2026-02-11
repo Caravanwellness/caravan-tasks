@@ -17,7 +17,7 @@ access_token = os.getenv('VIMEO_UPLOAD_API_KEY')
 client_id = os.getenv('VIMEO_CLIENT_ID')
 client_secret = os.getenv('VIMEO_CLIENT_SECRET')
 
-excel_file = 'assets/Caravan English Video RAG List.xlsx'
+excel_file = 'assets/Caravan English Videos List (1-7-2026) Tags.xlsx'
 log_file = 'sheets/upload_log.csv'
 
 
@@ -37,19 +37,19 @@ if not english_sheet:
     exit(1)
 
 results = []
-description_col_idx = 15
-vimeo_id_col_idx = 26
+description_col_idx = 9
+vimeo_id_col_idx = 20
 vimeo_name_col_idx = 4
-row_counter = 2
-transcript_col_idx = 27 # Column U is index 21
+row_counter = 1000
+transcript_col_idx = 21 # Column U is index 21
 
-MAX_ROWS = 1720  # Set to None to process all rows
+MAX_ROWS = 1834  # Set to None to process all rows
 
 # Initialize counters
 successful = 0
 failed = 0
 skipped = 0
-
+series_name = ""
 
 
 while True:
@@ -60,6 +60,8 @@ while True:
         print(f"Reached {MAX_ROWS} rows limit (testing mode)")
         break
 
+    teacher = english_sheet.cell(row=row_counter, column=7).value
+    series = english_sheet.cell(row=row_counter, column=5).value
     vimeo_id = english_sheet.cell(row=row_counter, column=vimeo_id_col_idx).value
     description = english_sheet.cell(row=row_counter, column=description_col_idx).value
     transcripts = english_sheet.cell(row=row_counter, column=transcript_col_idx).value
@@ -71,79 +73,22 @@ while True:
     #     break
     # print(row)
     # print(vimeo_id, description)
-    if not vimeo_id:
+    if not teacher and vimeo_name:
+        series_name = vimeo_name.strip().replace(" Series", "")
+        print(f"Series name updated to: '{series_name}'")
         # print(f"\nSkipping row {row_counter}: Missing Vimeo ID")
-        skipped += 1
-        row_counter += 1
-        continue
-    elif transcripts:
-        # print(f"\nSkipping row {row_counter}: Transcript already exists")
-        skipped += 1
-        row_counter += 1
-        continue
+    # elif transcripts:
+    #     # print(f"\nSkipping row {row_counter}: Transcript already exists")
+    #     skipped += 1
+    #     row_counter += 1
+    #     continue
     else:
-        print(f"\nProcessing row {row_counter}: {vimeo_name}")
-        match1 = re.search(r'vimeo\.com/(\d+)', vimeo_id if vimeo_id else '')
-        video_id = match1.group(1) if match1 else None
 
-
-    
-
-        # Fetch texttracks
-        texttracks = fetch_texttracks(video_id)
-
-        if texttracks is None:
-            print(f"  Failed to fetch texttracks")
-            failed += 1
-            row_counter += 1
-            continue
-
-        if not texttracks:
-            print(f"  No texttracks available")
-            row_counter += 1
-            failed += 1
-            continue
-
-        # Select appropriate texttrack
-        autogen, selected_track = select_texttrack(texttracks)
-
-        # Check if transcript already exists
-
-        # Download the VTT file
-        link = selected_track.get("link")
-        language = selected_track.get("language")
-
-        if not link:
-            print(f"  No download link available")
-            failed += 1
-            continue
-
-
-        print(f"  Downloading texttrack (language: {language})")
-
-        try:
-            texttrack = get_vtt(link)
-            if not texttrack:
-                print(f"  Failed to download texttrack")
-                failed += 1
-                row_counter += 1
-                continue
-
-            print(f"  Downloaded {len(texttrack)} characters")
-            # print(texttrack[:200] + "..." if texttrack and len(texttrack) > 200 else texttrack)
-
-            transcript = parse_vtt_to_text(texttrack)
-            print(f"  Parsed transcript: {len(transcript)} characters")
-
-            transcript_cell = english_sheet.cell(row=row_counter, column=transcript_col_idx)
-            transcript_cell.value = transcript
-            wb.save(excel_file)
-            print(f"  Saved transcript to Excel (Row {row_counter}, Column {transcript_col_idx})")
-            successful += 1
-            time.sleep(20)
-        except Exception as e:
-            print(f"  Error processing texttrack: {e}")
-            failed += 1
+        series_cell = english_sheet.cell(row=row_counter, column=5)
+        series_cell.value = series_name
+        wb.save(excel_file)
+        print(f" Added series name {series_name} to Excel (Row {row_counter}, {vimeo_name})")
+        successful += 1
 
     row_counter += 1
 

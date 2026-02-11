@@ -4,6 +4,13 @@ __pycache__/
 vimeo-ott/sheets/
 vimeo-ott/images/
 vimeo-ott/videos/
+vimeo-ott/subtitles
+vimeo-ott/subtitles_all
 translation/files/
 video-slide/assets/
 vimeo-transcripts/assets
+vimeo-transcripts/texttracks
+vimeo-tasks/assets/
+vimeo-tasks/sheets/
+aws-integration/assets
+

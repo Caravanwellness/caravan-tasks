@@ -185,7 +185,7 @@ def fetch_texttracks(video_id):
             break
 
         page += 1
-    print(all_texttracks)
+
     return all_texttracks
 
 def select_texttrack(texttracks):
@@ -302,40 +302,40 @@ def main():
         safe_name = sanitize_filename(video_name)
         output_path = texttracks_folder / f"{safe_name}{autogen}.vtt"
 
-        if output_path.exists():
-            print(f"  Transcript already exists, skipping")
-            skipped += 1
-            continue
+        # if output_path.exists():
+        #     print(f"  Transcript already exists, skipping")
+        #     skipped += 1
+        #     continue
 
-        if not selected_track:
-            print(f"  No suitable texttrack found")
-            failed += 1
-            continue
+        # if not selected_track:
+        #     print(f"  No suitable texttrack found")
+        #     failed += 1
+        #     continue
 
-        # Download the VTT file
-        link = selected_track.get("link")
-        language = selected_track.get("language")
+        # # Download the VTT file
+        # link = selected_track.get("link")
+        # language = selected_track.get("language")
 
-        if not link:
-            print(f"  No download link available")
-            failed += 1
-            continue
+        # if not link:
+        #     print(f"  No download link available")
+        #     failed += 1
+        #     continue
 
 
-        print(f"  Downloading texttrack (language: {language})")
+        # print(f"  Downloading texttrack (language: {language})")
 
-        if download_vtt(link, output_path):
-            print(f"  Saved VTT to: {output_path.name}")
+        # if download_vtt(link, output_path):
+        #     print(f"  Saved VTT to: {output_path.name}")
 
-            # Automatically convert to text transcript
-            txt_output_path = transcripts_folder / f"{safe_name}.txt"
-            if convert_vtt_to_transcript(output_path, txt_output_path):
-                print(f"  Converted to text: {txt_output_path.name}")
+        #     # Automatically convert to text transcript
+        #     txt_output_path = transcripts_folder / f"{safe_name}.txt"
+        #     if convert_vtt_to_transcript(output_path, txt_output_path):
+        #         print(f"  Converted to text: {txt_output_path.name}")
 
-            successful += 1
-        else:
-            print(f"  Failed to download")
-            failed += 1
+        #     successful += 1
+        # else:
+        #     print(f"  Failed to download")
+        #     failed += 1
 
         # Rate limiting - be nice to the API
         

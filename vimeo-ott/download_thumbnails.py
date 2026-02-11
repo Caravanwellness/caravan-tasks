@@ -1,11 +1,13 @@
 import csv
 import os
 import requests
+import re
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, unquote
 import time
 from dotenv import load_dotenv
-
+from requests.auth import HTTPBasicAuth
+from download_texttracks import get_video_id_from_uri, fetch_texttracks, select_texttrack, get_vtt, download_vtt, sanitize_filename
 # Load environment variables
 load_dotenv()
 
@@ -21,10 +23,15 @@ def create_videos_folder():
         os.makedirs('videos')
         print("Created 'videos' folder")
 
+def create_subtitles_folder():
+    """Create videos folder if it doesn't exist"""
+    if not os.path.exists('subtitles'):
+        os.makedirs('subtitles')
+        print("Created 'videos' folder")
+
 def get_thumbnail_url_from_vimeo(page_url):
     """Extract thumbnail URL from Vimeo API using video ID from vimeo.com URLs"""
     try:
-        import re
 
         # Extract video ID from Vimeo URL
         # Pattern matches URLs like https://vimeo.com/1040132809 or https://vimeo.com/1040132809?share=copy
@@ -118,6 +125,17 @@ def get_thumbnail_url(page_url):
     except requests.exceptions.RequestException as e:
         print(f"  Error fetching page {page_url}: {e}")
         return None
+    
+def get_vimeo_url(page_url):
+    """Check if URL is a Vimeo URL"""
+    match = re.search(r'vimeo\.com/(\d+)', page_url)
+
+    if not match:
+        print(f"  Could not extract video ID from URL: {page_url}")
+        return None
+
+    video_id = match.group(1)
+    print(f"  Extracted video ID: {video_id}")
 
 def get_video_url(page_url):
     """Extract video download URL from page by finding VIDEO_ID"""
@@ -135,7 +153,7 @@ def get_video_url(page_url):
 
         if match:
             video_id = match.group(1)
-            api_url = f"https://api.vhx.tv/videos/{video_id}/files"
+            api_url = f"https://api.vhx.tv/videos/{video_id}"
             print(f"  Found VIDEO_ID: {video_id}")
             return api_url
 
@@ -176,9 +194,9 @@ def download_thumbnail(thumbnail_url, video_name, row_number):
     except requests.exceptions.RequestException as e:
         print(f"  Error downloading thumbnail {thumbnail_url}: {e}")
         return False
-
-def download_video(api_url, video_name, row_number):
-    """Download video file to videos folder using VHX API"""
+    
+def request_vimeo_ott_api(api_url):
+    """Request Vimeo OTT API to get video details including download links"""
     try:
         # Get API key from environment
         api_key = os.getenv('VIMEO_API_KEY')
@@ -197,8 +215,145 @@ def download_video(api_url, video_name, row_number):
         api_response = requests.get(api_url, headers=headers, auth=HTTPBasicAuth(api_key, ''), timeout=30)
         api_response.raise_for_status()
 
+        return api_response.json()
+
+
+    except requests.exceptions.RequestException as e:
+        print(f"\n  Error calling Vimeo OTT API: {e}")
+        return None
+    
+
+def download_texttracks_vimeo_api(video_id, video_name, row_number):
+    """Download texttracks and return list of downloaded language names."""
+    downloaded_languages = []
+    try:
+
+        texttracks = fetch_texttracks(video_id)
+
+        if texttracks is None:
+            print(f"  Failed to fetch texttracks")
+            return downloaded_languages
+
+        # Select appropriate texttrack
+        autogen, selected_track = select_texttrack(texttracks)
+
+        print(f"  Selected texttrack: Language={selected_track.get('language')}, Type={selected_track.get('type')}, Autogen={autogen}")
+
+        # Check if transcript already exists
+        # safe_name = sanitize_filename(video_name)
+        # output_path = texttracks_folder / f"{safe_name}{autogen}.vtt"
+
+
+        link = selected_track.get("link")
+        lang = "English"
+        language = selected_track.get("language")
+
+        # print(subtitle_files)
+
+        safe_name = "".join(c for c in video_name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_name = safe_name.replace(' ', '_')
+        pathname = f"subtitles/{(row_number + 1):03d}_{safe_name}_subtitles"
+        exists = os.path.exists(pathname)
+
+        if not exists:
+            os.makedirs(pathname)
+            print(f"Created '{pathname}' folder")
+
+
+        # if not exists:
+        print(f"  Downloading texttrack (language: {language})")
+    # Download subtitle file
+        subtitle_response = requests.get(link, timeout=10)
+        subtitle_response.raise_for_status()
+
+        # Save subtitle file
+        filename = f"subtitle_{lang}.vtt"
+        filepath = os.path.join(pathname, filename)
+        with open(filepath, 'wb') as f:
+            f.write(subtitle_response.content)
+        # print(f"  ✓ Downloaded subtitle: {filename}")
+        time.sleep(5)
+        downloaded_languages.append(lang)
+
+        return downloaded_languages
+
+    except requests.exceptions.RequestException as e:
+        print(f"\n  Error downloading textracks: {e}")
+        return downloaded_languages
+    except Exception as e:
+        print(f"\n  Error processing textrack download: {e}")
+        return downloaded_languages
+
+def download_texttracks_vimeo_ott(api_url, video_name, row_number):
+    """Download texttracks and return list of downloaded language names."""
+    downloaded_languages = []
+    try:
+        files_data = request_vimeo_ott_api(api_url)
+        subtitle_files = files_data['_embedded']['subtitles']
+        # print(subtitle_files)
+
+        safe_name = "".join(c for c in video_name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_name = safe_name.replace(' ', '_')
+        pathname = f"subtitles/{(row_number + 1):03d}_{safe_name}_subtitles"
+        exists = os.path.exists(pathname)
+
+        if not exists:
+            os.makedirs(pathname)
+            print(f"Created '{pathname}' folder")
+
+        for subtitle in subtitle_files:
+            lang = subtitle.get('language', 'unknown')
+            link = subtitle['_links']['self']['href']
+            # print(f"  Found subtitle: {lang} - {link}")
+
+            if not exists:
+            # Download subtitle file
+                subtitle_response = requests.get(link, timeout=10)
+                subtitle_response.raise_for_status()
+
+                # Save subtitle file
+                filename = f"subtitle_{lang}.srt"
+                filepath = os.path.join(pathname, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(subtitle_response.content)
+                # print(f"  ✓ Downloaded subtitle: {filename}")
+                time.sleep(2)
+            downloaded_languages.append(lang)
+
+        return downloaded_languages
+
+    except requests.exceptions.RequestException as e:
+        print(f"\n  Error downloading textracks: {e}")
+        return downloaded_languages
+    except Exception as e:
+        print(f"\n  Error processing textrack download: {e}")
+        return downloaded_languages
+
+
+
+
+def download_video(api_url, video_name, row_number):
+    """Download video file to videos folder using VHX API"""
+    try:
+        # Get API key from environment
+        api_key = os.getenv('VIMEO_API_KEY')
+        # if not api_key:
+        #     print(f"\n  Error: VIMEO_API_KEY not found in .env file")
+        #     return False
+
+        # # Make API request to get video file info using Basic Auth
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        # print(f"  Fetching video file info from API...")
+        # # Basic auth with api_key as username, empty password
+        # from requests.auth import HTTPBasicAuth
+        # api_response = requests.get(api_url, headers=headers, auth=HTTPBasicAuth(api_key, ''), timeout=30)
+        # api_response.raise_for_status()
+
         # Parse JSON response - it's a list of file objects
-        files_data = api_response.json()
+        files_data = request_vimeo_ott_api(api_url) + ['/files']
 
         # Extract the download URL from the source href
         # Find the highest quality MP4 file (1080p, 720p, etc.)
@@ -265,8 +420,36 @@ def download_video(api_url, video_name, row_number):
         print(f"\n  Error processing video download: {e}")
         return False
 
+def update_language_columns(row, downloaded_languages, language_columns):
+    """
+    For each downloaded language, find its matching column via exact match
+    and set to TRUE. If no match, append to the Extras column.
+    """
+    lang_list = []
+    extras_list = []
+
+    for lang in downloaded_languages:
+        lang_list.append(lang)
+        matched = False
+        for col_name in language_columns:
+            if lang.lower() == col_name.lower():
+                row[col_name] = 'TRUE'
+                # print(f"    Matched '{lang}' -> column '{col_name}' = TRUE")
+                matched = True
+                break
+        if not matched:
+            if lang not in extras_list:
+                extras_list.append(lang)
+        
+            # print(f"    No column match for '{lang}' -> appended to Extras")
+
+    row['Languages'] = ', '.join(lang_list)
+    row['Extras'] = ', '.join(extras_list)
+    print(f"    Found Languages: {row['Languages']}")
+    print(f"    Updated Extras: {row['Extras']}")
+
 def main():
-    csv_path = os.path.join('sheets', 'Passport.csv')
+    csv_path = os.path.join('sheets', 'PepTalk.csv')
 
     if not os.path.exists(csv_path):
         print(f"Error: CSV file not found at {csv_path}")
@@ -274,71 +457,93 @@ def main():
 
     create_thumbnails_folder()
     create_videos_folder()
+    create_subtitles_folder()
 
     print(f"\nReading URLs from: {csv_path}\n")
 
+    # Read all rows into memory so we can update and write back
     with open(csv_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
 
-        success_count = 0
-        fail_count = 0
-        
+    # Identify language columns (everything between 'URL' and 'Extras')
+    # url_idx = fieldnames.index('Vimeo Link')
+    # extras_idx = fieldnames.index('Extras')
+    # language_columns = fieldnames[url_idx + 1 : extras_idx]
 
-        for i, row in enumerate(reader, start=1):
-            if i <= 5:
-                continue
+    success_count = 0
+    fail_count = 0
 
-            video_name = row.get('Video Title', '').strip()
-            url = row.get('URL', '').strip()
-            # content_format = row.get('Content Format', '').strip()
+    for i, row in enumerate(rows):
+        row_num = i + 1
+        # if row_num <= 75:
+        #     continue
 
-            # if not video_name == "Meditation for Mental Focus Truike":
-            #     continue
+        # if row_num != 100:
+        #     continue
 
-            if not url:
-                print(f"{i}. Skipping row - no URL")
-                continue
+        video_name = row.get('Videos', '').strip()
+        url = row.get('URL', '').strip()
 
-            # if content_format.lower() != 'video' and content_format.lower() != 'audio':
-            #     print(f"{i}. Skipping {video_name} - Content Format is '{content_format}'")
-            #     continue
+        if not url:
+            print(f"{row_num + 1}. Skipping row - no URL")
+            continue
 
-            print(f"{i}. Processing: {video_name}")
-            print(f"  URL: {url}")
+        # print(f"{row_num}. Processing: {video_name}")
+        # print(f"  URL: {url}")
 
-            # Get thumbnail URL from page
-            # Check if URL is a vimeo.com URL
-            if 'vimeo.com' in url:
-                print(f"  Detected Vimeo URL, using microdata extraction")
-                thumbnail_url = get_thumbnail_url_from_vimeo(url)
-            else:
-                thumbnail_url = get_thumbnail_url(url)
+        thumbnail_url = get_thumbnail_url(url)
 
-            video_api_url = get_video_url(url)
+        # video_id = url[18:28]
+        # video_id = get_vimeo_url(url)
+        # print(f"{row_num + 1}. Processing: {video_name} (ID: {video_id})")
 
-            # Download thumbnail
-            # if thumbnail_url:
-            #     print(f"  Found thumbnail: {thumbnail_url}")
-            #     if download_thumbnail(thumbnail_url, video_name, i):
-            #         success_count += 1
-            #     else:
-            #         fail_count += 1
-            # else:
-            #     fail_count += 1
 
-            # Download video
-            if video_api_url:
-                print(f"  Video API URL: {video_api_url}")
-                if download_video(video_api_url, video_name, i):
-                    success_count += 1
-                else:
-                    fail_count += 1
+    
+
+        # Fetch texttracks
+
+        if url:
+            print(f"{row_num + 1}. Processing: {video_name} (API URL found)")
+            if thumbnail_url:
+                download_thumbnail(thumbnail_url, video_name, row_num)
+                success_count += 1
             else:
                 fail_count += 1
 
-            # Be polite and don't hammer the server
-            time.sleep(1)
-            print()
+
+        # if video_api_url:
+        #     print(f"  Video API URL: {video_api_url}")
+
+        #     downloaded_languages = download_texttracks_vimeo_ott(video_api_url, video_name, row_num)
+
+        #     if downloaded_languages:
+        #         update_language_columns(row, downloaded_languages, language_columns)
+        #         success_count += 1
+        #     else:
+        #         fail_count += 1
+        # if video_id:
+        #     # print(f"  Video ID: {video_id}")
+
+        #     downloaded_languages = download_texttracks_vimeo_api(video_id, video_name, row_num)
+
+        #     if downloaded_languages:
+        #         update_language_columns(row, downloaded_languages, language_columns)
+        #         success_count += 1
+        #     else:
+        #         fail_count += 1
+        else:
+            fail_count += 1
+
+        # Be polite and don't hammer the server
+        print()
+
+    # Write updated rows back to CSV
+    # with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+    #     writer = csv.DictWriter(f, fieldnames=fieldnames)
+    #     writer.writeheader()
+    #     writer.writerows(rows)
 
     print(f"\n{'='*60}")
     print(f"Download complete!")
